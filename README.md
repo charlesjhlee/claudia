@@ -1,6 +1,6 @@
 # Claudia
 
-A fast, standalone Rust executable that automates Claude interactions by passing it a Markdown file with tasks to complete.
+A fast, standalone Rust executable that acts as a wrapper and allows Claude Code to be run 24/7 while you are sleeping. It automates Claude interactions by passing it a Markdown file with tasks to complete and executes all tasks continuously until all tasks have been completed, irresepective of the number of tasks specified.
 
 ## Features
 

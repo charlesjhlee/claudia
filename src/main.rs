@@ -359,8 +359,28 @@ impl Claudia {
                 continue;
             }
             
-            // Check if Claude has stopped (no output for 3 seconds and no "esc to interrupt")
-            if time_since_output > Duration::from_secs(3) && Self::check_claude_stopped(&buffer) {
+            // Check for bypass permissions prompt
+            if Self::check_bypass_permissions_prompt(&buffer) {
+                self.update_status("Detected bypass permissions prompt, accepting...");
+                if std::env::args().any(|arg| arg == "--debug" || arg == "-d") {
+                    eprintln!("[DEBUG] Bypass permissions prompt detected, sending '2' to accept");
+                }
+                // Send "2" to accept
+                writer.write_all(b"2")?;
+                writer.flush()?;
+                thread::sleep(Duration::from_millis(50));
+                // Send Enter key
+                writer.write_all(&[0x0D])?;
+                writer.flush()?;
+                *self.output_buffer.lock().unwrap() = String::new();
+                *self.last_output_time.lock().unwrap() = Instant::now();
+                continue;
+            }
+            
+            // Check if we need to send Continue
+            // Logic: If "esc to interrupt" is NOT present (Claude has stopped) AND 
+            //        we haven't had output for 3 seconds AND tasks aren't all completed
+            if time_since_output > Duration::from_secs(3) && !Self::is_claude_running(&buffer) {
                 // Check if all tasks are completed
                 if self.check_all_tasks_completed() {
                     self.update_status("All tasks completed! Exiting...");
@@ -397,6 +417,7 @@ impl Claudia {
                 *self.last_output_time.lock().unwrap() = Instant::now();
                 self.update_status("Claude is working...");
             }
+            // If "esc to interrupt" is present, Claude is still working - just wait
         }
         
         // Signal input thread to exit
@@ -505,10 +526,32 @@ impl Claudia {
         Ok(())
     }
 
-    fn check_claude_stopped(buffer: &str) -> bool {
+    fn is_claude_running(buffer: &str) -> bool {
         // Check the last 200 chars for "esc to interrupt"
+        // If "esc to interrupt" is present, Claude is still running
         let recent = Self::safe_suffix(buffer, 200);
-        !recent.to_lowercase().contains("esc to interrupt")
+        recent.to_lowercase().contains("esc to interrupt")
+    }
+    
+    fn check_bypass_permissions_prompt(buffer: &str) -> bool {
+        // Check for the bypass permissions prompt
+        let recent = Self::safe_suffix(buffer, 1500);
+        let recent_lower = recent.to_lowercase();
+        
+        // Look for the characteristic prompt patterns
+        if recent_lower.contains("bypass permissions mode") &&
+           recent_lower.contains("1. no, exit") &&
+           recent_lower.contains("2. yes, i accept") {
+            return true;
+        }
+        
+        // Also check for variations
+        if recent.contains("WARNING: Claude Code running in Bypass Permissions mode") &&
+           (recent.contains("1. No, exit") || recent.contains("2. Yes, I accept")) {
+            return true;
+        }
+        
+        false
     }
     
     fn check_all_tasks_completed(&self) -> bool {
