@@ -379,8 +379,8 @@ impl Claudia {
             
             // Check if we need to send Continue
             // Logic: If "esc to interrupt" is NOT present (Claude has stopped) AND 
-            //        we haven't had output for 3 seconds AND tasks aren't all completed
-            if time_since_output > Duration::from_secs(3) && !Self::is_claude_running(&buffer) {
+            //        we haven't had output for 60 seconds AND tasks aren't all completed
+            if time_since_output > Duration::from_secs(60) && !Self::is_claude_running(&buffer) {
                 // Check if all tasks are completed
                 if self.check_all_tasks_completed() {
                     self.update_status("All tasks completed! Exiting...");
@@ -454,7 +454,7 @@ impl Claudia {
     fn check_usage_limit(buffer: &str) -> Option<DateTime<Local>> {
         // Look for specific usage limit patterns from Claude
         // Common patterns: "usage limit", "rate limit", "try again at", "please wait until"
-        let recent = Self::safe_suffix(buffer, 1000);
+        let recent = Self::safe_suffix(buffer, 2000);
         let recent_lower = recent.to_lowercase();
         
         // Check if this is actually a usage limit message
